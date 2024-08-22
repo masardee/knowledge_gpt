@@ -2,6 +2,8 @@ import streamlit as st
 
 from knowledge_gpt.components.sidebar import sidebar
 
+from knowledge_gpt.components.document import processFile
+
 from knowledge_gpt.ui import (
     wrap_doc_in_html,
     is_query_valid,
@@ -26,13 +28,13 @@ MODEL_LIST = ["gpt-3.5-turbo", "gpt-4"]
 # Uncomment to enable debug mode
 # MODEL_LIST.insert(0, "debug")
 
-st.set_page_config(page_title="KnowledgeGPT", page_icon="📖", layout="wide")
-st.header("📖KnowledgeGPT")
+st.set_page_config(page_title="Legal UB AI", page_icon="📖", layout="wide")
+st.header("Legal UB AI")
 
 # Enable caching for expensive functions
 bootstrap_caching()
 
-sidebar()
+uploaded_file = sidebar()
 
 openai_api_key = st.session_state.get("OPENAI_API_KEY")
 
@@ -43,14 +45,12 @@ if not openai_api_key:
         " https://platform.openai.com/account/api-keys."
     )
 
-
-uploaded_file = st.file_uploader(
-    "Upload a pdf, docx, or txt file",
-    type=["pdf", "docx", "txt"],
-    help="Scanned documents are not supported yet!",
-)
-
 model: str = st.selectbox("Model", options=MODEL_LIST)  # type: ignore
+
+if openai_api_key:
+    if not is_open_ai_key_valid(openai_api_key, model):
+        st.warning("Your OpenAI API key is not valid")
+        st.stop()
 
 with st.expander("Advanced Options"):
     return_all_chunks = st.checkbox("Show all chunks retrieved from vector search")
@@ -61,27 +61,33 @@ if not uploaded_file:
     st.stop()
 
 try:
-    file = read_file(uploaded_file)
+    folder_index = processFile(uploaded_file, openai_api_key, model)
 except Exception as e:
     display_file_read_error(e, file_name=uploaded_file.name)
-
-chunked_file = chunk_file(file, chunk_size=300, chunk_overlap=0)
-
-if not is_file_valid(file):
     st.stop()
 
+# try:
+#     file = read_file(uploaded_file)
+# except Exception as e:
+#     display_file_read_error(e, file_name=uploaded_file.name)
 
-if not is_open_ai_key_valid(openai_api_key, model):
-    st.stop()
+# chunked_file = chunk_file(file, chunk_size=300, chunk_overlap=0)
+
+# if not is_file_valid(file):
+#     st.stop()
 
 
-with st.spinner("Indexing document... This may take a while⏳"):
-    folder_index = embed_files(
-        files=[chunked_file],
-        embedding=EMBEDDING if model != "debug" else "debug",
-        vector_store=VECTOR_STORE if model != "debug" else "debug",
-        openai_api_key=openai_api_key,
-    )
+# if not is_open_ai_key_valid(openai_api_key, model):
+#     st.stop()
+
+
+# with st.spinner("Indexing document... This may take a while⏳"):
+#     folder_index = embed_files(
+#         files=[chunked_file],
+#         embedding=EMBEDDING if model != "debug" else "debug",
+#         vector_store=VECTOR_STORE if model != "debug" else "debug",
+#         openai_api_key=openai_api_key,
+#     )
 
 with st.form(key="qa_form"):
     query = st.text_area("Ask a question about the document")
